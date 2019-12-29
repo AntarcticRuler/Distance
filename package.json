@@ -1,0 +1,10 @@
+{
+  "name": "",
+  "version": "",
+  "dependencies": {
+    "@google/maps": "^1.0.2",
+    "discord.js": "^11.5.1",
+    "google-distance": "^1.0.1",
+    "mongodb": "^3.4.1"
+  }
+}
