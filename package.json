@@ -1,10 +1,29 @@
 {
-  "name": "",
-  "version": "",
+  "//1": "describes your app and its dependencies",
+  "//2": "https://docs.npmjs.com/files/package.json",
+  "//3": "updating this file will download and update your packages",
+  "name": "Discord-Location",
+  "version": "0.0.1",
+  "description": "The Discord Location app!",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
   "dependencies": {
-    "@google/maps": "^1.0.2",
+    "axios": "^0.19.0",
     "discord.js": "^11.5.1",
-    "google-distance": "^1.0.1",
     "mongodb": "^3.4.1"
-  }
+  },
+  "engines": {
+    "node": "8.x"
+  },
+  "repository": {
+    "url": "https://glitch.com/edit/#!/hello-express"
+  },
+  "keywords": [
+    "node",
+    "glitch"
+  ],
+  "devDependencies": {},
+  "author": "NickStudios"
 }
