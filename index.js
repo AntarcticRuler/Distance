@@ -75,9 +75,19 @@ function register(message) {
 
 // Changes the users town
 function changeTown(message) {
+  // Checks to see if you are changing your town in DMs or not
+  if (message.channel.type != "dm")
+    return message.channel.send(
+      new Discord.RichEmbed().setDescription(
+        "You must change your town in DMs!"
+      )
+    );
+
+  // Gets the new location to be updated
   let newLocation = message.content
     .slice(`${prefix}change `.length)
     .toLowerCase();
+  // Updates the new location
   collection.updateOne(
     { id: message.author.id },
     { $set: { location: newLocation } },
@@ -133,6 +143,79 @@ function calculateDistance(author, target, message) {
     });
 }
 
+// Checks all users on the server to find how close you are
+function getServer(message) {
+  // Limits how many members the server can be
+  if (message.guild.members.size >= 1000)
+    return message.channel.send(
+      new Discord.RichEmbed().setDescription(
+        `Cannot be used in servers with more than 100 people.`
+      )
+    );
+
+  // Creates the query for the search on MongoDB
+  var query = [];
+  query.push({ id: message.author.id });
+  message.guild.members.forEach(function(member) {
+    if (member.id != message.author.id) query.push({ id: member.id });
+  });
+
+  collection.find({ $or: query }).toArray(function(err, result) {
+    massDistance(query, result, message);
+  });
+}
+
+function massDistance(query, routes, message) {
+  // Creates the postRoutes variable which is what will be posted to the API
+  // Also creates an array for the user ID of each individual location
+  var postRoutes = [];
+  var IDs = [];
+  postRoutes.push(routes[0].location);
+  IDs.push(routes[0].id);
+  for (let i = 0; i < routes.length; i++)
+    if (routes[i].id != message.author.id) {
+      postRoutes.push(routes[i].location);
+      IDs.push(routes[i].id);
+    }
+
+  // Makes sure the request isnt too large
+  if (postRoutes.length > 100)
+    return message.channel.send(
+      new Discord.RichEmbed().setDescription(`Can't post more than 100 users!`)
+    );
+
+  // Posts to the API
+  axios
+    .post(
+      `http://www.mapquestapi.com/directions/v2/routematrix?key=${mpqKey}`,
+      {
+        locations: postRoutes
+      }
+    )
+    .then(res => {
+      returnMassDistance(IDs, res, message);
+    })
+    .catch(error => {
+      console.error(error);
+    });
+}
+
+// Returns the distance the API provides for all the users
+function returnMassDistance(IDs, res, message) {
+  let embed = new Discord.RichEmbed();
+  let embedString = "";
+  for (let i = 0; i < IDs.length; i++) {
+    if (res.data.distance[i])
+      embedString += `${client.users.get(IDs[i]).username} is ${
+        res.data.distance[i]
+      } mi away.\n`;
+  }
+
+  embed.setDescription(embedString);
+
+  message.channel.send(embed);
+}
+
 // Sends to the channel the message with the distance
 function returnDistance(res, message) {
   let embed = new Discord.RichEmbed();
@@ -151,6 +234,8 @@ const prefix = "*";
 // Message is inside a function to verify that it only runs once the DB has been connected to
 function runMessage() {
   client.on("message", message => {
+    if (message.author.bot) return;
+
     // Variables
     var mention = message.mentions.users.first();
     let msg = message.content.toLowerCase();
@@ -161,7 +246,7 @@ function runMessage() {
     else if (msg.startsWith(`${prefix}register`))
       return message.channel.send(
         new Discord.RichEmbed().setDescription(
-          `When registering, please type:\n*register Town, State/Province/Country`
+          `When registering, please type:\n*register Town, State/Province/Country\n\n[You must register in DMs]`
         )
       );
     // Change town
@@ -171,7 +256,7 @@ function runMessage() {
     else if (msg.startsWith(`${prefix}change`))
       return message.channel.send(
         new Discord.RichEmbed().setDescription(
-          `When changing your town, please type:\n*register Town, State/Province/Country`
+          `When changing your town, please type:\n*register Town, State/Province/Country\n\n[You must change town in DMs]`
         )
       );
     // @ User
@@ -184,6 +269,7 @@ function runMessage() {
           `Please @ a user after the command:\n*user @user`
         )
       );
+    else if (msg.startsWith(`${prefix}server`)) getServer(message);
     // Help command
     else if (msg.startsWith(`${prefix}help`))
       return message.channel.send(
@@ -192,6 +278,15 @@ function runMessage() {
             `**Registration**\n${prefix}register Town, State/Province/Country\n\n**Change Town**\n${prefix}change Town, State/Province/Country\n\n**Distance to user**\n${prefix}user @user\n\nhttp://www.nick-studios.com/discord-location`
           )
           .setAuthor(`Discord Location Commands`, client.user.avatarURL)
+      );
+    // Invite Command
+    else if (msg.startsWith(`${prefix}invite`))
+      return message.channel.send(
+        new Discord.RichEmbed()
+          .setDescription(
+            `https://discordapp.com/oauth2/authorize?client_id=660920627032489985&scope=bot&permissions=52288`
+          )
+          .setAuthor(`Discord Location Invite`, client.user.avatarURL)
       );
   });
 }
