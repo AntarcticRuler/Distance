@@ -1,5 +1,6 @@
-// Reasources used
+// Resources used
 // https://developer.mapquest.com/documentation/directions-api/route-matrix/post/
+// https://developer.mapquest.com/documentation/geocoding-api/batch/post/
 
 // NICKSTUDIOS
 // - AntarcticRuler
@@ -16,6 +17,8 @@ const MongoClient = require("mongodb").MongoClient;
 const url = process.env.MONGO_URL;
 
 const dbClient = new MongoClient(url, { useUnifiedTopology: true });
+
+const getDistance = require("geolib").getDistance;
 
 var db;
 var collection;
@@ -51,7 +54,7 @@ function registerUser(message) {
     if (result.length != 0)
       return message.channel.send(
         new Discord.RichEmbed().setDescription(
-          "You are already registered!\nUse the change command instead:\n*change Town, State/Province/Country"
+          "You are already registered!\nUse the change command instead:\n*change Town, State/Province, Country"
         )
       );
     // Registers user
@@ -102,22 +105,36 @@ function changeTown(message) {
   );
 }
 
+// Old code that routes between two towns/cities
 // Posts the towns and gets the request for distances
-function dist(p1, p2, message) {
-  axios
-    .post(
-      `http://www.mapquestapi.com/directions/v2/routematrix?key=${mpqKey}`,
-      {
-        locations: [p1, p2]
-      }
-    )
-    .then(res => {
-      returnDistance(res, message);
-    })
-    .catch(error => {
-      console.error(error);
-    });
-}
+// function dist(p1, p2, message) {
+//   axios
+//     .post(
+//       `http://www.mapquestapi.com/directions/v2/routematrix?key=${mpqKey}`,
+//       {
+//         locations: [p1, p2]
+//       }
+//     )
+//     .then(res => {
+//       returnDistance(res, message);
+//     })
+//     .catch(error => {
+//       console.error(error);
+//     });
+// }
+// Sends to the channel the message with the distance
+// function returnDistance(res, message) {
+//   let embed = new Discord.RichEmbed();
+//   if (res.data.distance)
+//     embed.setDescription(
+//       `You and the user are ${res.data.distance[1]} mi apart!`
+//     );
+//   else
+//     embed.setDescription(
+//       `Cannot find the distance between the two users.\nEither the locations are invalid, or the users are in different countries.`
+//     );
+//   message.channel.send(embed);
+// }
 
 // Pulls the request from the database for the author and the target
 function calculateDistance(author, target, message) {
@@ -139,8 +156,63 @@ function calculateDistance(author, target, message) {
             "The other user does not have a hometown set!"
           )
         );
-      dist(result[0].location, result[1].location, message);
+      console.log(result[0].location, result[1].location);
+      townToCoords(result[0].location, result[1].location, message);
     });
+}
+
+// Gets the coordinates for the two towns
+function townToCoords(p1, p2, message) {
+  axios
+    .post(`http://www.mapquestapi.com/geocoding/v1/batch?key=${mpqKey}`, {
+      locations: [
+        {
+          city: p1.split(",")[0],
+          state: p1.split(",")[1]
+        },
+        {
+          city: p2.split(",")[0],
+          state: p2.split(",")[1]
+        }
+      ],
+      options: { thumbMaps: false }
+    })
+    .then(res => {
+      returnDistanceCoords(res.data.results, message);
+    })
+    .catch(error => {
+      console.error(error);
+    });
+}
+
+// Sends to the channel the message with the distance between the two coordinates
+function returnDistanceCoords(res, message) {
+  console.log(res);
+  let p1 = res[0].locations[0].latLng;
+  let p2 = res[1].locations[0].latLng;
+
+  if (!p1)
+    return message.channel.send(
+      new Discord.RichEmbed().setDescription(`Your data is incorrect.`)
+    );
+  else if (!p1)
+    return message.channel.send(
+      new Discord.RichEmbed().setDescription(
+        `The data of the user is incorrect.`
+      )
+    );
+
+  let distance = getDistance(
+    { latitude: p1.lat, longitude: p1.lng },
+    { latitude: p2.lat, longitude: p2.lng }
+  );
+
+  distance = Math.floor(distance * 0.001);
+
+  let embed = new Discord.RichEmbed().setDescription(
+    `You two are ${distance} km away!`
+  );
+  message.channel.send(embed);
 }
 
 // Checks all users on the server to find how close you are
@@ -216,20 +288,6 @@ function returnMassDistance(IDs, res, message) {
   message.channel.send(embed);
 }
 
-// Sends to the channel the message with the distance
-function returnDistance(res, message) {
-  let embed = new Discord.RichEmbed();
-  if (res.data.distance)
-    embed.setDescription(
-      `You and the user are ${res.data.distance[1]} mi apart!`
-    );
-  else
-    embed.setDescription(
-      `Cannot find the distance between the two users.\nEither the locations are invalid, or the users are in different countries.`
-    );
-  message.channel.send(embed);
-}
-
 const prefix = "*";
 // Message is inside a function to verify that it only runs once the DB has been connected to
 function runMessage() {
@@ -246,7 +304,7 @@ function runMessage() {
     else if (msg.startsWith(`${prefix}register`))
       return message.channel.send(
         new Discord.RichEmbed().setDescription(
-          `When registering, please type:\n*register Town, State/Province/Country\n\n[You must register in DMs]`
+          `When registering, please type:\n*register Town, State/Province, Country\n\n[You must register in DMs]`
         )
       );
     // Change town
@@ -256,7 +314,7 @@ function runMessage() {
     else if (msg.startsWith(`${prefix}change`))
       return message.channel.send(
         new Discord.RichEmbed().setDescription(
-          `When changing your town, please type:\n*register Town, State/Province/Country\n\n[You must change town in DMs]`
+          `When changing your town, please type:\n*register Town, State/Province, Country\n\n[You must change town in DMs]`
         )
       );
     // @ User
@@ -275,7 +333,7 @@ function runMessage() {
       return message.channel.send(
         new Discord.RichEmbed()
           .setDescription(
-            `**Registration**\n${prefix}register Town, State/Province/Country\n\n**Change Town**\n${prefix}change Town, State/Province/Country\n\n**Distance to user**\n${prefix}user @user\n\nhttp://www.nick-studios.com/discord-location`
+            `**Registration**\n${prefix}register Town, State/Province, Country\n\n**Change Town**\n${prefix}change Town, State/Province, Country\n\n**Distance to user**\n${prefix}user @user\n\nhttp://www.nick-studios.com/discord-location`
           )
           .setAuthor(`Discord Location Commands`, client.user.avatarURL)
       );
