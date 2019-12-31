@@ -49,7 +49,6 @@ function registerUser(message) {
 
   collection.find({ id: message.author.id }).toArray(function(err, result) {
     if (err) throw err;
-    console.log(result);
     // Checks to see if user is already registered
     if (result.length != 0)
       return message.channel.send(
@@ -156,7 +155,6 @@ function calculateDistance(author, target, message) {
             "The other user does not have a hometown set!"
           )
         );
-      console.log(result[0].location, result[1].location);
       townToCoords(result[0].location, result[1].location, message);
     });
 }
@@ -187,7 +185,6 @@ function townToCoords(p1, p2, message) {
 
 // Sends to the channel the message with the distance between the two coordinates
 function returnDistanceCoords(res, message) {
-  console.log(res);
   let p1 = res[0].locations[0].latLng;
   let p2 = res[1].locations[0].latLng;
 
@@ -242,11 +239,17 @@ function massDistance(query, routes, message) {
   // Also creates an array for the user ID of each individual location
   var postRoutes = [];
   var IDs = [];
-  postRoutes.push(routes[0].location);
+  postRoutes.push({
+    city: routes[0].location.split(",")[0],
+    state: routes[0].location.split(",")[1]
+  });
   IDs.push(routes[0].id);
   for (let i = 0; i < routes.length; i++)
     if (routes[i].id != message.author.id) {
-      postRoutes.push(routes[i].location);
+      postRoutes.push({
+        city: routes[i].location.split(",")[0],
+        state: routes[i].location.split(",")[1]
+      });
       IDs.push(routes[i].id);
     }
 
@@ -258,12 +261,9 @@ function massDistance(query, routes, message) {
 
   // Posts to the API
   axios
-    .post(
-      `http://www.mapquestapi.com/directions/v2/routematrix?key=${mpqKey}`,
-      {
-        locations: postRoutes
-      }
-    )
+    .post(`http://www.mapquestapi.com/geocoding/v1/batch?key=${mpqKey}`, {
+      locations: postRoutes
+    })
     .then(res => {
       returnMassDistance(IDs, res, message);
     })
@@ -273,14 +273,42 @@ function massDistance(query, routes, message) {
 }
 
 // Returns the distance the API provides for all the users
+// function returnMassDistance(IDs, res, message) {
+//   let embed = new Discord.RichEmbed();
+//   let embedString = "";
+//   for (let i = 0; i < IDs.length; i++) {
+//     if (res.data.distance[i])
+//       embedString += `${client.users.get(IDs[i]).username} is ${
+//         res.data.distance[i]
+//       } mi away.\n`;
+//   }
+
+//   embed.setDescription(embedString);
+
+//   message.channel.send(embed);
+// }
+
+// Returns the distance the API provides for all the users from the author
 function returnMassDistance(IDs, res, message) {
   let embed = new Discord.RichEmbed();
   let embedString = "";
-  for (let i = 0; i < IDs.length; i++) {
-    if (res.data.distance[i])
-      embedString += `${client.users.get(IDs[i]).username} is ${
-        res.data.distance[i]
-      } mi away.\n`;
+
+  // Loops through each individual registered member on the server, gets the distance, and adds them to the embed
+  for (let i = 1; i < IDs.length; i++) {
+    let distance = getDistance(
+      {
+        latitude: res.data.results[0].locations[0].latLng.lat,
+        longitude: res.data.results[0].locations[0].latLng.lng
+      },
+      {
+        latitude: res.data.results[i].locations[0].latLng.lat,
+        longitude: res.data.results[i].locations[0].latLng.lng
+      }
+    );
+    distance = Math.floor(distance * 0.001);
+    embedString += `${
+      client.users.get(IDs[i]).username
+    } is ${distance} km away.\n`;
   }
 
   embed.setDescription(embedString);
