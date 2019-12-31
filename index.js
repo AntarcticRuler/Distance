@@ -150,11 +150,21 @@ function calculateDistance(author, target, message) {
     .toArray(function(err, result) {
       if (err) throw err;
       if (result.length != 2)
-        return message.channel.send(
-          new Discord.RichEmbed().setDescription(
-            "The other user does not have a hometown set!"
-          )
-        );
+        // Checks to see if your ID comes up in the search, if not returns an error message
+        if (result[0].id == target)
+          return message.channel.send(
+            new Discord.RichEmbed().setDescription(
+              "You don't have a hometown set!"
+            )
+          );
+        // Checks to see if the target's ID comes up in a search, otherwise returns an error message
+        else
+          return message.channel.send(
+            new Discord.RichEmbed().setDescription(
+              "The other user does not have a hometown set!"
+            )
+          );
+      // Runs townToCoords
       townToCoords(result[0].location, result[1].location, message);
     });
 }
